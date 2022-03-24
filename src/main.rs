@@ -1,4 +1,3 @@
-mod hash_wheel;
 mod os;
 mod proc;
 mod scheduler;

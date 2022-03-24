@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-pub type PId = u64;
+pub type PId = usize;
 
 #[derive(Debug)]
 pub enum Task {
@@ -23,4 +23,5 @@ pub struct Process {
     t_arrive: u64,
     t_turnaround: u64,
     t_completion: u64,
+    pub complete: bool,
 }
