@@ -1,2 +1,3 @@
 # proc-sc-sim
- Process scheduler's simulations
+
+A simple simulator of various process schedulers.
