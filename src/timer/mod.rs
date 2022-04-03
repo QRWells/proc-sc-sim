@@ -1,1 +1,1 @@
-mod hashed_wheel;
+pub mod hashed_wheel;

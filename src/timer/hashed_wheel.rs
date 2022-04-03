@@ -94,6 +94,7 @@ where
     }
 
     pub fn tick(&mut self) {
+        self.current_tick += self.resolution as isize;
         self.buckets.iter_mut().for_each(|bucket| bucket.tick());
     }
 
@@ -103,7 +104,7 @@ where
         self.buckets[deadline as usize % self.wheel_size].add_timeout(timeout);
     }
 
-    pub fn expire_timeouts(&mut self) -> Option<T> {
+    pub fn expire_timeout(&mut self) -> Option<T> {
         self.buckets[self.current_tick as usize % self.wheel_size].expired_timeout()
     }
 }
