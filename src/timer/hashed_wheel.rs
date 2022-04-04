@@ -1,5 +1,4 @@
-use core::time;
-use std::collections::{linked_list, LinkedList};
+use std::collections::LinkedList;
 
 #[derive(Debug, Clone)]
 pub struct HashedWheelTimeout<T>
