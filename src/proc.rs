@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 pub type PId = usize;
 
@@ -18,7 +18,7 @@ pub enum ProcessState {
 
 #[derive(Debug, Clone)]
 pub struct Process {
-    pub id: Option<PId>,
+    pub id: PId,
     pub tasks: VecDeque<Task>,
     pub state: ProcessState,
     pub cpu: u32,
@@ -29,25 +29,27 @@ pub struct Process {
     pub burst_time: u64,
     pub complete_time: Option<u64>,
     pub response_time: Option<u64>,
+    pub remaining_time: u64,
     pub time_have_burst: u64,
 
     pub complete: bool,
 }
 
 impl Process {
-    pub fn new(t_arrive: u64) -> Self {
+    pub fn new(pid: PId, t_arrive: u64, burst_time: u64) -> Self {
         Self {
             name: None,
-            id: None,
+            id: pid,
             state: ProcessState::Runnable,
             cpu: 0,
             tasks: VecDeque::new(),
             arrive_time: t_arrive,
             turnaround_time: None,
-            burst_time: 0,
+            burst_time,
             complete_time: None,
             response_time: None,
             time_have_burst: 0,
+            remaining_time: burst_time,
             complete: false,
         }
     }
@@ -60,12 +62,13 @@ impl Process {
     }
 
     pub(crate) fn set_pid(&mut self, pid: PId) {
-        self.id = Some(pid);
+        self.id = pid;
     }
 
     pub(crate) fn set_complete(&mut self, current_time: u64) {
         self.state = ProcessState::Terminated;
         self.complete_time = Some(current_time);
+        self.turnaround_time = Some(current_time - self.arrive_time);
     }
 
     pub(crate) fn burst(&mut self, clock: u64) -> Option<Task> {
@@ -73,6 +76,7 @@ impl Process {
             self.response_time = Some(clock - self.arrive_time - 1);
         }
         self.time_have_burst += 1;
+        self.remaining_time -= 1;
 
         if self.time_have_burst >= self.burst_time {
             self.set_complete(clock);
@@ -102,5 +106,12 @@ impl Process {
             }
             Some(task)
         })
+    }
+
+    pub(crate) fn is_complete(&self) -> bool {
+        match self.state {
+            ProcessState::Terminated => true,
+            _ => false,
+        }
     }
 }

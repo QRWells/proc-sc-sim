@@ -1,7 +1,5 @@
 use std::{
     collections::HashMap,
-    default,
-    rc::{self, Rc},
     sync::{Arc, Mutex},
 };
 
@@ -13,14 +11,12 @@ use crate::{
 
 use itertools::Itertools;
 
-const MAX_PID: usize = 1 << 10;
-
 pub struct Os {
     interval: u64,
-    clock: u64,
-    waiting_list: HashedWheel<PId>,
+    pub(crate) clock: u64,
+    pub(crate) waiting_list: HashedWheel<PId>,
     processes: HashMap<PId, Process>,
-    running_process_pid: Option<PId>,
+    pub(crate) running_process_pid: Option<PId>,
     scheduler: Arc<Mutex<Box<dyn Scheduler + Send>>>,
 }
 
@@ -45,8 +41,8 @@ impl Os {
         self.processes.insert(pid, process.to_owned());
     }
 
-    pub fn get_proc(&mut self, pid: &PId) -> &Process {
-        &self.processes[pid]
+    pub fn get_proc(&mut self, pid: &PId) -> Option<&mut Process> {
+        self.processes.get_mut(pid)
     }
 
     pub fn current_proc(&self) -> Option<&Process> {
@@ -133,9 +129,10 @@ impl Os {
                 pid += 1;
             }
         }
-        if pid >= MAX_PID {
-            panic!("no more process could be added!")
-        }
         pid
+    }
+
+    pub(crate) fn running_process(&self) -> Option<&mut Process> {
+        todo!()
     }
 }
