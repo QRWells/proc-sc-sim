@@ -12,7 +12,7 @@ use crate::{
 use itertools::Itertools;
 
 pub struct Os {
-    interval: u64,
+    pub(crate) interval: u64,
     pub(crate) clock: u64,
     pub(crate) waiting_list: HashedWheel<PId>,
     processes: HashMap<PId, Process>,

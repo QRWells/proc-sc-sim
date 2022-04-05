@@ -18,10 +18,11 @@ pub enum ProcessState {
 
 #[derive(Debug, Clone)]
 pub struct Process {
-    pub id: PId,
-    pub tasks: VecDeque<Task>,
-    pub state: ProcessState,
-    pub cpu: u32,
+    pub(crate) id: PId,
+    pub(crate) tasks: VecDeque<Task>,
+    pub(crate) state: ProcessState,
+    pub(crate) cpu: u32,
+    pub(crate) priority: i32,
 
     pub name: Option<String>,
     pub arrive_time: u64,
@@ -51,6 +52,7 @@ impl Process {
             time_have_burst: 0,
             remaining_time: burst_time,
             complete: false,
+            priority: 0,
         }
     }
 

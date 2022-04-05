@@ -148,14 +148,150 @@ struct RoundRobinScheduler {
     used_time_slice_map: HashMap<PId, u64>,
     time_slice: u64,
 }
+impl Scheduler for RoundRobinScheduler {
+    fn on_process_ready(&mut self, os: &mut Os, pid: PId) {
+        self.ready_queue.push_back(pid);
+    }
+
+    fn switch_process(&mut self, os: &mut Os) {
+        os.switch_proc(self.ready_queue.pop_front());
+    }
+
+    fn on_process_burst(&mut self, os: &mut Os, pid: PId) {
+        let used_time_slice = self.used_time_slice_map.get(&pid).unwrap_or(&0).clone();
+        if used_time_slice >= self.time_slice && os.is_proc_running(pid) {
+            self.ready_queue.push_back(pid);
+            self.used_time_slice_map.insert(pid, 0);
+            self.switch_process(os);
+        } else {
+            self.used_time_slice_map
+                .insert(pid, used_time_slice + os.interval);
+        }
+    }
+}
+
 struct MLFQScheduler {
     ready_queues: [IndexSet<PId>; 3],
     used_time_slice_map: HashMap<PId, u64>,
     running_process: Option<(PId, usize)>,
     time_slices: [u64; 2],
 }
+
+impl MLFQScheduler {
+    fn get_priority(&self, pid: PId) -> usize {
+        self.running_process
+            .and_then(|(p, priority)| (pid == p).then(|| priority))
+            .unwrap_or_else(|| {
+                self.ready_queues
+                    .iter()
+                    .enumerate()
+                    .find_map(|(pr, q)| q.get(&pid).and(Some(pr)))
+                    .unwrap_or(0)
+            })
+    }
+
+    fn level_down(&mut self, pid: PId) {
+        let pr = self.get_priority(pid);
+        if pr >= self.ready_queues.len() - 1 {
+            return;
+        }
+        self.ready_queues[pr].remove(&pid);
+        self.ready_queues[pr + 1].insert(pid);
+    }
+
+    fn is_proc_running(&self, pid: PId) -> bool {
+        self.running_process.map_or(false, |(id, _)| id == pid)
+    }
+}
+
+impl Scheduler for MLFQScheduler {
+    fn on_process_ready(&mut self, os: &mut Os, pid: PId) {
+        self.ready_queues[0].insert(pid);
+    }
+
+    fn switch_process(&mut self, os: &mut Os) {
+        if let Some((pid, pr)) = self
+            .ready_queues
+            .iter_mut()
+            .enumerate()
+            .find_map(|(pri, q)| q.pop().map(|pid| (pid, pri)))
+        {
+            self.running_process = Some((pid, pr));
+            os.switch_proc(Some(pid));
+        } else {
+            self.running_process = None;
+            os.switch_proc(None);
+        }
+    }
+
+    fn on_process_burst(&mut self, os: &mut Os, pid: PId) {
+        let priority = self.get_priority(pid);
+        let last_priority = self.ready_queues.len() - 1;
+        if priority >= last_priority {
+            if self.ready_queues[0..last_priority]
+                .iter()
+                .any(|q| !q.is_empty())
+            {
+                self.ready_queues[last_priority].insert(pid);
+                self.switch_process(os);
+            }
+        } else {
+            let used_time_slice = self.used_time_slice_map.get(&pid).copied().unwrap_or(0);
+            if used_time_slice >= self.time_slices[priority] && self.is_proc_running(pid) {
+                self.level_down(pid);
+                self.used_time_slice_map.insert(pid, 0);
+                self.switch_process(os);
+            } else {
+                self.used_time_slice_map
+                    .insert(pid, used_time_slice + os.interval);
+            }
+        }
+    }
+}
+
 struct FairShareScheduler {
     total_ticket: usize,
-    next_pid: PId,
+    next_pid: Option<PId>,
     process_ticket: HashMap<PId, usize>,
+}
+
+impl Scheduler for FairShareScheduler {
+    fn on_process_ready(&mut self, os: &mut Os, pid: PId) {
+        let ticket = os
+            .get_proc(&pid)
+            .and_then(|p| Some(p.priority))
+            .unwrap_or(0) as usize
+            * 100;
+        self.total_ticket += ticket;
+        self.process_ticket.insert(pid, ticket);
+    }
+
+    fn switch_process(&mut self, os: &mut Os) {
+        os.switch_proc(self.next_pid);
+    }
+
+    fn on_process_burst(&mut self, os: &mut Os, pid: PId) {
+        self.process_ticket.retain(|p, _| {
+            os.get_proc(p)
+                .and_then(|proc| Some(!proc.is_complete()))
+                .unwrap_or(false)
+        });
+        self.total_ticket = self.process_ticket.values().sum();
+        if self.process_ticket.len() == 0 {
+            self.next_pid = None;
+            self.switch_process(os);
+            return;
+        }
+
+        let mut winner = rand::random::<usize>() % self.total_ticket + 1;
+        for (p, t) in self.process_ticket.iter() {
+            winner -= t;
+            if winner > 0 {
+                continue;
+            }
+            self.next_pid = Some(*p);
+            self.switch_process(os);
+            return;
+        }
+    }
 }
